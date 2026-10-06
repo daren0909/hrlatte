@@ -1,0 +1,27 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // 각 사용자는 자기 기록만 읽고, 만들고, 지울 수 있습니다.
+    match /users/{uid}/entries/{entryId} {
+      allow read, delete: if request.auth != null && request.auth.uid == uid;
+
+      allow create, update: if request.auth != null
+        && request.auth.uid == uid
+        && validEntry(request.resource.data);
+    }
+
+    function validEntry(d) {
+      return d.keys().hasOnly(['type', 'activity', 'date', 'ts', 'note'])
+        && d.keys().hasAll(['type', 'date', 'ts', 'note'])
+        && d.date is string && d.date.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+        && d.ts is number
+        && d.note is string && d.note.size() <= 60
+        && (
+          // 운동 종류를 바꾸면 이 목록도 index.html의 ACTIVITIES id와 맞춰 주세요.
+          (d.type == 'earn' && d.activity in ['walk', 'pilates', 'pt'])
+          || (d.type == 'spend' && !('activity' in d))
+        );
+    }
+  }
+}
